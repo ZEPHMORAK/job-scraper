@@ -15,7 +15,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 import config
 import database as db
 from scrapers.upwork import scrape_upwork
-from scrapers.linkedin import scrape_linkedin
+from scrapers.indeed import scrape_indeed
 from scrapers.gmaps import scrape_gmaps
 from filters.lead_filter import filter_leads
 from ai.analyzer import analyze_job
@@ -64,10 +64,10 @@ async def scrape_and_qualify():
         source_status["upwork"] = False
 
     try:
-        linkedin_raw = scrape_linkedin()
+        linkedin_raw = scrape_indeed()
         source_status["linkedin"] = True
     except Exception as e:
-        logger.error(f"LinkedIn scraper failed: {e}")
+        logger.error(f"Indeed scraper failed: {e}")
         source_status["linkedin"] = False
 
     try:
