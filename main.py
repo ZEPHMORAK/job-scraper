@@ -49,7 +49,7 @@ async def scrape_and_qualify():
     5. Send to Telegram for approval
     """
     print(f"\n{'='*50}")
-    print(f"  🚀 Scraper run started — {datetime.now().strftime('%d %b %Y %H:%M')}")
+    print(f"  SCRAPER RUN STARTED -- {datetime.now().strftime('%d %b %Y %H:%M')}")
     print(f"{'='*50}")
 
     # ── Scrape ──
@@ -154,20 +154,20 @@ async def run_followup_check():
 async def run():
     # 1. Initialize database
     db.init_db()
-    print(f"\n✅ Database initialized")
+    print(f"\n[OK] Database initialized")
 
     # 2. Print current stats
     print_stats()
 
     # 3. Build Telegram bot
     app = build_app()
-    print(f"✅ Telegram bot connected")
-    print(f"✅ Mode: {'SAFE (manual approval)' if config.SAFE_MODE else 'AUTO'}")
-    print(f"✅ Schedule: every {config.SCHEDULE_HOURS} hours")
-    print(f"✅ Min budget: ${config.MIN_BUDGET} | Min score: {config.MIN_SCORE}/10")
-    print(f"✅ Upwork keywords: {', '.join(config.UPWORK_KEYWORDS[:3])}...")
+    print(f"[OK] Telegram bot connected")
+    print(f"[OK] Mode: {'SAFE (manual approval)' if config.SAFE_MODE else 'AUTO'}")
+    print(f"[OK] Schedule: every {config.SCHEDULE_HOURS} hours")
+    print(f"[OK] Min budget: ${config.MIN_BUDGET} | Min score: {config.MIN_SCORE}/10")
+    print(f"[OK] Upwork keywords: {', '.join(config.UPWORK_KEYWORDS[:3])}...")
     print(f"\n{'='*50}")
-    print(f"  🤖 System running — Ctrl+C to stop")
+    print(f"  SYSTEM RUNNING -- Ctrl+C to stop")
     print(f"{'='*50}\n")
 
     # 4. Set up APScheduler
