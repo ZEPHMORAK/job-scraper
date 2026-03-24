@@ -39,20 +39,13 @@ def _passes_hard_filters(lead: dict) -> tuple[bool, str]:
         if budget > 0 and budget < config.MIN_BUDGET:
             return False, f"Budget ${budget} below minimum ${config.MIN_BUDGET}"
 
-        if not lead.get("payment_verified"):
-            return False, "Payment not verified"
-
-        client_spend = lead.get("client_spend", 0)
-        if client_spend < 1000:
-            return False, f"Client spend ${client_spend} below $1,000"
-
         proposals = lead.get("proposals", 0)
-        if proposals >= 20:
+        if proposals >= 50:
             return False, f"Too competitive — {proposals} proposals already"
 
         posted_at = lead.get("posted_at", "")
-        if not _is_recent(posted_at, max_hours=2.0):
-            return False, "Posted more than 2 hours ago"
+        if not _is_recent(posted_at, max_hours=24.0):
+            return False, "Posted more than 24 hours ago"
 
     # LinkedIn — only block if clearly too many proposals
     if platform == "linkedin":
@@ -130,7 +123,17 @@ def filter_leads(leads: list[dict]) -> list[dict]:
     """
     Apply hard filters + scoring to a list of raw leads.
     Returns only qualified leads (score >= MIN_SCORE) with score/niche attached.
+    If DEBUG_MODE=True, all leads pass through regardless of score.
     """
+    if config.DEBUG_MODE:
+        print(f"[Filter] DEBUG MODE — skipping all filters, passing {len(leads)} leads through")
+        for lead in leads:
+            score, niche = score_lead(lead)
+            lead["score"] = score
+            lead["niche"] = niche or lead.get("niche", "")
+            print(f"  -> score={score}/10 | '{lead.get('title', '')[:60]}'")
+        return leads
+
     qualified = []
     dropped = 0
 

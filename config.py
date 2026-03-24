@@ -28,6 +28,13 @@ def _int(key: str, default: int) -> int:
         return default
 
 
+def _float(key: str, default: float) -> float:
+    try:
+        return float(os.getenv(key, str(default)))
+    except ValueError:
+        return default
+
+
 def _list(key: str, default: list = None) -> list:
     raw = os.getenv(key, "")
     if not raw.strip():
@@ -52,11 +59,12 @@ GMAPS_QUERIES       = _list("GMAPS_QUERIES", ["real estate agents Lagos", "busin
 UPWORK_KEYWORDS     = _list("UPWORK_KEYWORDS", ["web automation", "AI integration", "real estate tech"])
 LINKEDIN_KEYWORDS   = _list("LINKEDIN_KEYWORDS", ["automation consultant", "AI developer"])
 
-MIN_BUDGET          = _int("MIN_BUDGET", 100)
-MIN_SCORE           = _int("MIN_SCORE", 7)
+MIN_BUDGET          = _int("MIN_BUDGET", 20)
+MIN_SCORE           = _int("MIN_SCORE", 5)
 MODE                = _optional("MODE", "SAFE").upper()
 TONE                = _optional("TONE", "professional")
-SCHEDULE_HOURS      = _int("SCHEDULE_HOURS", 12)
+SCHEDULE_HOURS      = _float("SCHEDULE_HOURS", 0.5)
+DEBUG_MODE          = _optional("DEBUG_MODE", "false").lower() == "true"
 
 DAILY_UPWORK_LIMIT  = _int("DAILY_UPWORK_LIMIT", 20)
 DAILY_LINKEDIN_LIMIT = _int("DAILY_LINKEDIN_LIMIT", 30)
