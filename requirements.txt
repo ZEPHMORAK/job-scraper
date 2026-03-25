@@ -13,6 +13,7 @@ pyee>=13.0.0
 requests>=2.32.0
 beautifulsoup4>=4.12.0
 soupsieve>=2.5.0
+lxml>=5.0.0
 
 # Scheduling
 APScheduler>=3.10.0,<4.0.0

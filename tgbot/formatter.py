@@ -51,6 +51,15 @@ def format_lead_card(lead: dict, message: str, msg_id: int) -> str:
             f"📌 {address}",
             f"⭐ {rating} ({reviews:,} reviews)",
         ]
+    elif platform in ("REAL_ESTATE", "ACADEMIC"):
+        icon = "🏠" if platform == "REAL_ESTATE" else "🎓"
+        email = _escape(lead.get("email", ""))
+        city  = _escape(lead.get("company", ""))
+        lines += [
+            f"{icon} <b>{title}</b>",
+            f"📍 {city}" if city else "",
+            f"📧 <b>{email}</b>" if email else "📧 No email found",
+        ]
 
     if niche:
         lines.append(f"🎯 Niche: <b>{niche}</b>")

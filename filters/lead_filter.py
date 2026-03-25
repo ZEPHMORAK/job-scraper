@@ -47,11 +47,15 @@ def _passes_hard_filters(lead: dict) -> tuple[bool, str]:
         if not _is_recent(posted_at, max_hours=24.0):
             return False, "Posted more than 24 hours ago"
 
-    # LinkedIn — only block if clearly too many proposals
-    if platform == "linkedin":
+    # LinkedIn / Indeed — only block if clearly too many proposals
+    if platform in ("linkedin", "indeed"):
         proposals = lead.get("proposals", 0)
         if proposals >= 50:
             return False, "Too many applicants"
+
+    # Real estate and academic leads always pass hard filters
+    if platform in ("real_estate", "academic"):
+        return True, ""
 
     return True, ""
 
@@ -103,6 +107,12 @@ def score_lead(lead: dict) -> tuple[int, str]:
         score += 2
     elif proposals < 10:
         score += 1
+
+    # Real estate + academic leads: base score 6 (no budget/proposals data available)
+    if lead.get("platform") in ("real_estate", "academic"):
+        score = max(score, 6)
+        if lead.get("email"):
+            score = min(10, score + 2)  # bonus for having an email
 
     # Google Maps leads get a base score of 6 (no proposals/budget data)
     if lead.get("platform") == "gmaps":

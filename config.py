@@ -82,3 +82,21 @@ GMAPS_ENABLED       = bool(GOOGLE_MAPS_API_KEY)
 EMAIL_ENABLED       = bool(EMAIL_USER and EMAIL_PASS)
 
 TARGET_NICHES       = ["coaches", "consultants", "real estate", "property", "coaching"]
+
+# ─── Lead Gen: Real Estate ─────────────────────────────────────────────────────
+REAL_ESTATE_CITIES  = _list("REAL_ESTATE_CITIES", [
+    "Lagos", "Abuja", "London", "New York", "Toronto", "Sydney"
+])
+
+# ─── Lead Gen: Academic ────────────────────────────────────────────────────────
+ACADEMIC_QUERIES    = _list("ACADEMIC_QUERIES", [
+    'site:.edu "PhD student" research',
+    'site:.edu "assistant professor" contact',
+    'site:.edu "research fellow" email',
+    'site:.edu "postdoctoral researcher"',
+    'site:.ac.uk "PhD student" contact',
+])
+
+# ─── Lead Gen: Limits ──────────────────────────────────────────────────────────
+MAX_RE_PER_CITY     = _int("MAX_RE_PER_CITY", 5)
+MAX_ACAD_PER_QUERY  = _int("MAX_ACAD_PER_QUERY", 5)
