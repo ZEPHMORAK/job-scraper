@@ -23,7 +23,11 @@ DDG_URL = "https://html.duckduckgo.com/html/"
 def _search_ddg(query: str, max_results: int = 8) -> list[dict]:
     """Search DuckDuckGo HTML and return list of {title, url, snippet}."""
     try:
-        resp = requests.post(
+        session = requests.Session()
+        # Get a vqd token first (avoids rate limiting)
+        session.get("https://duckduckgo.com/", headers=HEADERS, timeout=10)
+        time.sleep(random.uniform(1.0, 2.0))
+        resp = session.post(
             DDG_URL,
             data={"q": query, "b": "", "kl": "us-en"},
             headers=HEADERS,
@@ -36,7 +40,7 @@ def _search_ddg(query: str, max_results: int = 8) -> list[dict]:
         soup = BeautifulSoup(resp.text, "html.parser")
         results = []
         for r in soup.select(".result__body")[:max_results]:
-            title_el = r.select_one(".result__title a")
+            title_el = r.select_one("a.result__a")
             snippet_el = r.select_one(".result__snippet")
             if not title_el:
                 continue

@@ -14,8 +14,8 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 import config
 import database as db
-from scrapers.upwork import scrape_upwork
-from scrapers.indeed import scrape_indeed
+from scrapers.remoteok import scrape_remoteok
+from scrapers.remotive import scrape_remotive
 from scrapers.gmaps import scrape_gmaps
 from scrapers.real_estate import scrape_real_estate
 from scrapers.academic import scrape_academic
@@ -57,21 +57,21 @@ async def scrape_and_qualify():
     # ── Scrape ──
     source_status = {}
 
-    upwork_raw, indeed_raw, gmaps_raw, re_raw, acad_raw = [], [], [], [], []
+    remoteok_raw, remotive_raw, gmaps_raw, re_raw, acad_raw = [], [], [], [], []
 
     try:
-        upwork_raw = scrape_upwork()
-        source_status["upwork"] = True
+        remoteok_raw = scrape_remoteok()
+        source_status["remoteok"] = True
     except Exception as e:
-        logger.error(f"Upwork scraper failed: {e}")
-        source_status["upwork"] = False
+        logger.error(f"RemoteOK scraper failed: {e}")
+        source_status["remoteok"] = False
 
     try:
-        indeed_raw = scrape_indeed()
-        source_status["indeed"] = True
+        remotive_raw = scrape_remotive()
+        source_status["remotive"] = True
     except Exception as e:
-        logger.error(f"Indeed scraper failed: {e}")
-        source_status["indeed"] = False
+        logger.error(f"Remotive scraper failed: {e}")
+        source_status["remotive"] = False
 
     try:
         gmaps_raw = scrape_gmaps()
@@ -94,7 +94,7 @@ async def scrape_and_qualify():
         logger.error(f"Academic scraper failed: {e}")
         source_status["academic"] = False
 
-    all_raw = upwork_raw + indeed_raw + gmaps_raw + re_raw + acad_raw
+    all_raw = remoteok_raw + remotive_raw + gmaps_raw + re_raw + acad_raw
     db.increment_stat("leads_scraped", len(all_raw))
     print(f"\n[Main] Total raw leads: {len(all_raw)}")
 
