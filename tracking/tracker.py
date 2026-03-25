@@ -20,7 +20,7 @@ def print_stats():
     conversion = f"{total_deals / total_sent * 100:.1f}%" if total_sent else "N/A"
 
     print("\n" + "=" * 45)
-    print("  📊 SAFE MODE AI REVENUE ENGINE — STATS")
+    print("  [STATS] SAFE MODE AI REVENUE ENGINE -- STATS")
     print("=" * 45)
     print(f"  Leads scraped:    {stats.get('total_scraped') or 0:>6,}")
     print(f"  Leads qualified:  {stats.get('total_qualified') or 0:>6,}")

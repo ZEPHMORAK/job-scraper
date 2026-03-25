@@ -6,10 +6,15 @@ then starts Telegram bot polling (blocking).
 Run with:  python main.py
 Stop with: Ctrl+C
 """
+import sys
 import asyncio
 import logging
 import time
 from datetime import datetime
+
+# Force UTF-8 stdout on Windows (prevents cp1252 emoji crashes)
+if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 import config
