@@ -4,7 +4,10 @@ Free, no auth required. Returns JSON.
 API: https://remotive.com/api/remote-jobs
 """
 import requests
+import urllib3
 import config
+
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
@@ -43,6 +46,7 @@ def scrape_remotive(max_leads: int = 20) -> list[dict]:
                 params={"category": category, "limit": 20},
                 headers=HEADERS,
                 timeout=15,
+                verify=False,
             )
             if resp.status_code != 200:
                 print(f"[Remotive] HTTP {resp.status_code} for category '{category}'")

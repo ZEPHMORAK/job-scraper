@@ -6,6 +6,9 @@ import re
 import time
 import random
 import requests
+import urllib3
+
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122.0.0.0 Safari/537.36",
@@ -44,7 +47,7 @@ def extract_email_from_url(url: str, timeout: int = 8) -> str:
     if not url or not url.startswith("http"):
         return ""
     try:
-        resp = requests.get(url, headers=HEADERS, timeout=timeout, allow_redirects=True)
+        resp = requests.get(url, headers=HEADERS, timeout=timeout, allow_redirects=True, verify=False)
         if resp.status_code != 200:
             return ""
         emails = EMAIL_REGEX.findall(resp.text)

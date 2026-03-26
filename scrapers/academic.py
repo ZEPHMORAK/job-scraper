@@ -8,9 +8,12 @@ import time
 import random
 import hashlib
 import requests
+import urllib3
 from bs4 import BeautifulSoup
 from core.email_extractor import extract_email_from_url, extract_email_from_text
 import config
+
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122.0.0.0 Safari/537.36",
@@ -25,13 +28,14 @@ def _search_ddg(query: str, max_results: int = 8) -> list[dict]:
     """Search DuckDuckGo HTML and return list of {title, url, snippet}."""
     try:
         session = requests.Session()
+        session.verify = False
         session.get("https://duckduckgo.com/", headers=HEADERS, timeout=10)
-        time.sleep(random.uniform(1.0, 2.0))
+        time.sleep(random.uniform(1.5, 2.5))
         resp = session.post(
             DDG_URL,
             data={"q": query, "b": "", "kl": "us-en"},
-            headers=HEADERS,
-            timeout=15,
+            headers={**HEADERS, "Referer": "https://duckduckgo.com/"},
+            timeout=20,
         )
         if resp.status_code != 200:
             print(f"[Academic] DDG returned {resp.status_code} for: {query}")

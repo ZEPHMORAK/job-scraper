@@ -5,7 +5,10 @@ Searches for businesses by type and city, extracts name, address, phone, website
 """
 import time
 import requests
+import urllib3
 import config
+
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 OVERPASS_URL = "https://overpass-api.de/api/interpreter"
 NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
@@ -54,6 +57,7 @@ def _get_city_bbox(city: str):
             params={"q": city, "format": "json", "limit": 1},
             headers=HEADERS,
             timeout=10,
+            verify=False,
         )
         results = resp.json()
         if results:
@@ -77,7 +81,7 @@ def _overpass_query(bbox: tuple, osm_tag: str, limit: int = 10) -> list[dict]:
     out center {limit};
     """
     try:
-        resp = requests.post(OVERPASS_URL, data={"data": query}, headers=HEADERS, timeout=25)
+        resp = requests.post(OVERPASS_URL, data={"data": query}, headers=HEADERS, timeout=25, verify=False)
         if resp.status_code != 200:
             return []
         return resp.json().get("elements", [])

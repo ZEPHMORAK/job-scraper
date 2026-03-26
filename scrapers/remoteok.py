@@ -5,7 +5,10 @@ API: https://remoteok.com/api
 """
 import time
 import requests
+import urllib3
 import config
+
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122.0.0.0 Safari/537.36",
@@ -28,7 +31,7 @@ def scrape_remoteok(max_leads: int = 30) -> list[dict]:
     Returns normalized lead dicts.
     """
     try:
-        resp = requests.get(API_URL, headers=HEADERS, timeout=20)
+        resp = requests.get(API_URL, headers=HEADERS, timeout=20, verify=False)
         if resp.status_code != 200:
             print(f"[RemoteOK] HTTP {resp.status_code}")
             return []
