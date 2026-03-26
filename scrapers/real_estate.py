@@ -25,37 +25,41 @@ DDG_URL = "https://html.duckduckgo.com/html/"
 
 def _search_ddg(query: str, max_results: int = 8) -> list[dict]:
     """Search DuckDuckGo HTML and return list of {title, url, snippet}."""
-    try:
-        session = requests.Session()
-        session.verify = False
-        session.get("https://duckduckgo.com/", headers=HEADERS, timeout=10)
-        time.sleep(random.uniform(1.5, 2.5))
-        resp = session.post(
-            DDG_URL,
-            data={"q": query, "b": "", "kl": "us-en"},
-            headers={**HEADERS, "Referer": "https://duckduckgo.com/"},
-            timeout=20,
-        )
-        if resp.status_code != 200:
-            print(f"[RealEstate] DDG returned {resp.status_code} for: {query}")
-            return []
+    for attempt in range(3):
+        try:
+            session = requests.Session()
+            session.verify = False
+            session.get("https://duckduckgo.com/", headers=HEADERS, timeout=10)
+            time.sleep(random.uniform(1.5, 2.5))
+            resp = session.post(
+                DDG_URL,
+                data={"q": query, "b": "", "kl": "us-en"},
+                headers={**HEADERS, "Referer": "https://duckduckgo.com/"},
+                timeout=20,
+            )
+            if resp.status_code != 200:
+                print(f"[RealEstate] DDG returned {resp.status_code} for: {query}")
+                return []
 
-        soup = BeautifulSoup(resp.text, "html.parser")
-        results = []
-        for r in soup.select(".result__body")[:max_results]:
-            title_el = r.select_one("a.result__a")
-            snippet_el = r.select_one(".result__snippet")
-            if not title_el:
-                continue
-            title = title_el.get_text(strip=True)
-            url = title_el.get("href", "")
-            snippet = snippet_el.get_text(strip=True) if snippet_el else ""
-            if url and url.startswith("http"):
-                results.append({"title": title, "url": url, "snippet": snippet})
-        return results
-    except Exception as e:
-        print(f"[RealEstate] Search error: {e}")
-        return []
+            soup = BeautifulSoup(resp.text, "html.parser")
+            results = []
+            for r in soup.select(".result__body")[:max_results]:
+                title_el = r.select_one("a.result__a")
+                snippet_el = r.select_one(".result__snippet")
+                if not title_el:
+                    continue
+                title = title_el.get_text(strip=True)
+                url = title_el.get("href", "")
+                snippet = snippet_el.get_text(strip=True) if snippet_el else ""
+                if url and url.startswith("http"):
+                    results.append({"title": title, "url": url, "snippet": snippet})
+            return results
+        except Exception as e:
+            if attempt < 2:
+                time.sleep(random.uniform(2.0, 4.0))
+            else:
+                print(f"[RealEstate] Search error: {e}")
+    return []
 
 
 def scrape_real_estate(cities: list[str] = None, max_per_city: int = 5) -> list[dict]:
