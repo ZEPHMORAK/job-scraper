@@ -39,6 +39,9 @@ def _search_ddg(query: str, max_results: int = 8) -> list[dict]:
                 timeout=20,
             )
             if resp.status_code != 200:
+                if attempt < 2:
+                    time.sleep(random.uniform(3.0, 6.0))
+                    continue
                 print(f"[Academic] DDG returned {resp.status_code} for: {query}")
                 return []
 
