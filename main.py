@@ -24,11 +24,11 @@ from scrapers.academic     import scrape_academic
 from scrapers.gmaps        import scrape_gmaps
 from core.website_intelligence import analyze_website
 from core.opportunity_detector import detect_opportunity
-from core.email_reporter   import send_lead_report
 from core.email_extractor  import extract_email_from_url
 from filters.lead_filter   import filter_leads
 from ai.lead_writer        import generate_niche_outreach
 from tgbot.bot             import build_app, send_telegram_notification, send_run_summary
+# email_reporter kept as optional fallback only
 from tracking.tracker      import print_stats
 
 logging.basicConfig(
@@ -177,11 +177,8 @@ async def run_intelligence_pipeline():
             # Save to DB
             msg_id = db.save_message(lead["id"], "outreach", outreach)
 
-            # Email full report
-            email_sent = send_lead_report(lead, intel, opportunity, outreach)
-
-            # Telegram brief notification
-            await send_telegram_notification(lead, opportunity, outreach, email_sent)
+            # Send PDF report to Telegram
+            await send_telegram_notification(lead, opportunity, outreach, intel)
 
             await asyncio.sleep(1.5)
 

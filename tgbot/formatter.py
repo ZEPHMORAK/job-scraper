@@ -84,23 +84,23 @@ def format_lead_card(lead: dict, message: str, msg_id: int) -> str:
     return "\n".join(l for l in lines if l is not None)
 
 
-def format_opportunity_notification(lead: dict, opportunity: dict, email_sent: bool) -> str:
+def format_opportunity_notification(lead: dict, opportunity: dict, pdf: bool = False) -> str:
     """
-    Brief Telegram notification for a qualified lead (new format per spec).
-    Full report is sent via email.
+    Telegram caption for a lead notification.
+    When pdf=True, references the attached PDF for full details.
     """
-    priority = opportunity.get("priority", "LOW")
+    priority  = opportunity.get("priority", "LOW")
     opp_score = opportunity.get("opportunity_score", 0)
     lead_score = lead.get("score", 0)
-    niche = lead.get("niche", "").replace("_", " ").title()
-    title = _escape(lead.get("title", "Unknown")[:80])
-    url = lead.get("url", "")
-    email = lead.get("email", "")
+    niche  = lead.get("niche", "").replace("_", " ").title()
+    title  = _escape(lead.get("title", "Unknown")[:80])
+    url    = lead.get("url", "")
+    email  = lead.get("email", "")
 
     priority_header = {
-        "HIGH": "HIGH OPPORTUNITY LEAD",
+        "HIGH":   "HIGH OPPORTUNITY LEAD",
         "MEDIUM": "MEDIUM OPPORTUNITY LEAD",
-        "LOW": "LOW PRIORITY LEAD",
+        "LOW":    "LOW PRIORITY LEAD",
     }.get(priority, "NEW LEAD")
 
     lines = [
@@ -114,12 +114,10 @@ def format_opportunity_notification(lead: dict, opportunity: dict, email_sent: b
     if email:
         lines.append(f"<b>Email:</b> {_escape(email)}")
     if url:
-        lines.append(f'<b>Profile:</b> <a href="{url}">View</a>')
+        lines.append(f'<b>Website:</b> <a href="{url}">View</a>')
     lines.append("")
-    if email_sent:
-        lines.append("<i>Full lead report + outreach draft sent to your email.</i>")
-    else:
-        lines.append("<i>Configure email in settings to receive full reports.</i>")
+    if pdf:
+        lines.append("<i>Full lead report + outreach draft attached as PDF.</i>")
 
     return "\n".join(lines)
 

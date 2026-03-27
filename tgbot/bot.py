@@ -263,20 +263,43 @@ async def send_run_summary(sources: dict, new_jobs: int, new_leads: int):
         logger.error(f"[Telegram] Failed to send summary: {e}")
 
 
-async def send_telegram_notification(lead: dict, opportunity: dict, outreach: str, email_sent: bool):
-    """Send brief opportunity notification to Telegram (spec: no full proposal in TG)."""
+async def send_telegram_notification(lead: dict, opportunity: dict, outreach: str, web_intel: dict):
+    """
+    Send brief notification + full PDF report to Telegram.
+    """
     if not _app:
         return
-    text = format_opportunity_notification(lead, opportunity, email_sent)
+
+    import io
+    from core.pdf_reporter import generate_lead_pdf
+    from tgbot.formatter import format_opportunity_notification
+
+    caption = format_opportunity_notification(lead, opportunity, pdf=True)
+
     try:
-        await _app.bot.send_message(
+        pdf_bytes = generate_lead_pdf(lead, web_intel, opportunity, outreach)
+        title_slug = lead.get("title", "lead")[:40].replace(" ", "_").replace("/", "-")
+        filename = f"lead_{title_slug}.pdf"
+
+        await _app.bot.send_document(
             chat_id=config.TELEGRAM_CHAT_ID,
-            text=text,
+            document=io.BytesIO(pdf_bytes),
+            filename=filename,
+            caption=caption,
             parse_mode=ParseMode.HTML,
-            disable_web_page_preview=True,
         )
     except Exception as e:
-        logger.error(f"[Telegram] Failed to send notification: {e}")
+        logger.error(f"[Telegram] Failed to send PDF: {e}")
+        # Fallback: send text only
+        try:
+            await _app.bot.send_message(
+                chat_id=config.TELEGRAM_CHAT_ID,
+                text=caption,
+                parse_mode=ParseMode.HTML,
+                disable_web_page_preview=True,
+            )
+        except Exception as e2:
+            logger.error(f"[Telegram] Fallback text also failed: {e2}")
 
 
 async def send_followup_to_telegram(lead: dict, message: str, msg_id: int, day: int):
