@@ -1,73 +1,29 @@
 """
 scrapers/lawfirms.py — Law firm lead discovery
-Uses DuckDuckGo HTML scraping
 """
 import hashlib
 import time
-import requests
-import urllib3
-from bs4 import BeautifulSoup
-
-urllib3.disable_warnings()
-
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0 Safari/537.36",
-    "Accept-Language": "en-US,en;q=0.9",
-}
+from core.ddg_search import ddg_search, make_session
 
 QUERIES = [
-    '"law firm" Lagos Nigeria contact email website',
-    '"legal services" Nigeria attorney website contact',
-    '"law partners" Abuja Nigeria contact email',
-    '"solicitor" Lagos Nigeria website email',
-    '"legal practice" Nigeria email contact website',
-    '"law chambers" Lagos Nigeria website',
-    '"attorney" Nigeria contact email law firm',
-    '"barrister" Lagos Nigeria contact',
+    "law firm Lagos Nigeria website contact email",
+    "legal services attorney Nigeria contact website",
+    "law partners Abuja Nigeria email website",
+    "solicitor Lagos Nigeria website email",
+    "legal practice Nigeria email website",
+    "law chambers Lagos Nigeria website contact",
+    "barrister attorney Nigeria contact email",
+    "corporate law firm Nigeria website",
 ]
-
-
-def _ddg_search(session, query: str, max_results: int = 6) -> list[dict]:
-    results = []
-    try:
-        resp = session.post(
-            "https://html.duckduckgo.com/html/",
-            data={"q": query},
-            headers={**HEADERS, "Content-Type": "application/x-www-form-urlencoded"},
-            timeout=15,
-            verify=False,
-        )
-        if resp.status_code != 200:
-            print(f"[LawFirms] DDG returned {resp.status_code} for: {query[:40]}")
-            return []
-        soup = BeautifulSoup(resp.text, "html.parser")
-        for r in soup.select("a.result__a")[:max_results]:
-            url = r.get("href", "")
-            title = r.get_text(strip=True)
-            snippet = ""
-            parent = r.find_parent("div", class_="result")
-            if parent:
-                s = parent.select_one(".result__snippet")
-                if s:
-                    snippet = s.get_text(strip=True)
-            if url:
-                results.append({"url": url, "title": title, "snippet": snippet})
-    except Exception as e:
-        print(f"[LawFirms] Search error: {e}")
-    return results
 
 
 def scrape_lawfirms(max_per_query: int = 6) -> list[dict]:
     leads = []
     seen = set()
-    session = requests.Session()
-    try:
-        session.get("https://duckduckgo.com/", headers=HEADERS, timeout=10, verify=False)
-    except Exception:
-        pass
+    session = make_session()
 
     for query in QUERIES:
-        results = _ddg_search(session, query, max_per_query)
+        results = ddg_search(session, query, max_per_query)
         for r in results:
             url = r["url"]
             if url in seen:
@@ -95,7 +51,7 @@ def scrape_lawfirms(max_per_query: int = 6) -> list[dict]:
                 "payment_verified": False,
                 "score": 0,
             })
-        time.sleep(1.2)
+        time.sleep(1.5)
 
     print(f"[LawFirms] {len(leads)} leads found")
     return leads
