@@ -46,10 +46,14 @@ def format_lead_card(lead: dict, message: str, msg_id: int) -> str:
         address  = _escape(lead.get("address", ""))
         rating   = lead.get("rating", 0)
         reviews  = lead.get("review_count", 0)
+        phone    = _escape(lead.get("phone", ""))
+        website  = lead.get("website", "")
         lines += [
             f"📍 <b>{title}</b>",
             f"📌 {address}",
             f"⭐ {rating} ({reviews:,} reviews)",
+            f"📞 <b>{phone}</b>" if phone else "",
+            f'🌐 <a href="{website}">Website</a>' if website else "",
         ]
     elif platform in ("REAL_ESTATE", "ACADEMIC"):
         icon = "🏠" if platform == "REAL_ESTATE" else "🎓"
@@ -80,29 +84,63 @@ def format_lead_card(lead: dict, message: str, msg_id: int) -> str:
     return "\n".join(l for l in lines if l is not None)
 
 
+def format_opportunity_notification(lead: dict, opportunity: dict, email_sent: bool) -> str:
+    """
+    Brief Telegram notification for a qualified lead (new format per spec).
+    Full report is sent via email.
+    """
+    priority = opportunity.get("priority", "LOW")
+    opp_score = opportunity.get("opportunity_score", 0)
+    lead_score = lead.get("score", 0)
+    niche = lead.get("niche", "").replace("_", " ").title()
+    title = _escape(lead.get("title", "Unknown")[:80])
+    url = lead.get("url", "")
+    email = lead.get("email", "")
+
+    priority_header = {
+        "HIGH": "HIGH OPPORTUNITY LEAD",
+        "MEDIUM": "MEDIUM OPPORTUNITY LEAD",
+        "LOW": "LOW PRIORITY LEAD",
+    }.get(priority, "NEW LEAD")
+
+    lines = [
+        f"<b>{priority_header}</b>",
+        "",
+        f"<b>Name:</b> {title}",
+        f"<b>Niche:</b> {niche}",
+        f"<b>Lead Score:</b> {lead_score}/10",
+        f"<b>Opportunity Score:</b> {opp_score}/10",
+    ]
+    if email:
+        lines.append(f"<b>Email:</b> {_escape(email)}")
+    if url:
+        lines.append(f'<b>Profile:</b> <a href="{url}">View</a>')
+    lines.append("")
+    if email_sent:
+        lines.append("<i>Full lead report + outreach draft sent to your email.</i>")
+    else:
+        lines.append("<i>Configure email in settings to receive full reports.</i>")
+
+    return "\n".join(lines)
+
+
 def format_run_summary(sources: dict, new_jobs: int, new_leads: int) -> str:
     """
     Format the run summary sent at the start of each scraper run.
-    sources = {'upwork': True, 'linkedin': True, 'gmaps': False}
     """
     now = datetime.now().strftime("%d %b %Y, %H:%M")
     status = " | ".join(
-        f"{k.title()} {'✅' if v else '❌'}"
+        f"{k.title()} {'ok' if v else 'fail'}"
         for k, v in sources.items()
     )
     total = new_jobs + new_leads
     if total == 0:
         summary = "No new qualified leads this run."
     else:
-        parts = []
-        if new_jobs:
-            parts.append(f"{new_jobs} job{'s' if new_jobs != 1 else ''}")
-        if new_leads:
-            parts.append(f"{new_leads} business lead{'s' if new_leads != 1 else ''}")
-        summary = "New items: " + " + ".join(parts)
+        summary = f"{total} new qualified lead(s) discovered and reported."
 
     return (
-        f"<b>🤖 Scraper Run — {now}</b>\n"
+        f"<b>AI Lead Engine — {now}</b>\n"
         f"{status}\n"
         f"{summary}"
     )

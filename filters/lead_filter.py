@@ -1,169 +1,122 @@
 """
-filters/lead_filter.py — Smart filter + scoring engine
-Hard filters drop unqualified leads; scoring ranks the rest 1–10.
-Only leads with score >= MIN_SCORE (default 7) are forwarded to Telegram.
+filters/lead_filter.py — Lead scoring engine (new 4-niche model)
+
+Scoring signals:
+  Decision maker identified  → +2
+  Business website present   → +1
+  Email found                → +1
+  LinkedIn profile found     → +1
+  Website automation gap     → +2
+  Company growth signal      → +2
+  Academic .edu email        → +3
+  Professor / PhD title      → +3
+  University affiliation     → +2
 """
-import re
-from datetime import datetime, timezone, timedelta
 import config
 
-# Keywords that signal the lead matches target niches
-NICHE_KEYWORDS = {
-    "coaching": ["coach", "coaching", "life coach", "business coach", "executive coach",
-                 "online course", "e-learning", "membership site", "mastermind"],
-    "real estate": ["real estate", "realty", "property", "realtor", "mls", "listing",
-                    "mortgage", "landlord", "property management", "airbnb"],
-    "consultant": ["consultant", "consulting", "advisor", "advisory", "strategy"],
-    "automation": ["automation", "automate", "workflow", "zapier", "make.com",
-                   "n8n", "crm", "pipeline"],
-}
+DECISION_MAKER_KWS = [
+    "ceo", "founder", "managing director", "director", "partner",
+    "professor", "phd", "principal", "attorney", "solicitor",
+    "chief executive", "president", "managing partner", "head of",
+    "barrister", "advocate", "counsel",
+]
 
-# Urgency signals
-URGENCY_KEYWORDS = ["asap", "urgent", "immediately", "right away", "today", "this week",
-                    "fast", "quickly", "deadline", "time-sensitive"]
+GROWTH_KWS = [
+    "growing", "hiring", "expanded", "new office", "launched",
+    "funding", "series", "investment", "award", "ranked",
+    "top firm", "leading", "fastest growing",
+]
+
+ACADEMIC_DOMAINS = [".edu", ".ac.uk", ".edu.ng", ".ac.za"]
+ACADEMIC_TITLES = [
+    "professor", "phd", "doctoral", "research fellow",
+    "postdoc", "postdoctoral", "assistant professor",
+    "associate professor", "phd candidate", "phd student",
+]
 
 
-# ─── Hard Filters ─────────────────────────────────────────────────────────────
-
-def _passes_hard_filters(lead: dict) -> tuple[bool, str]:
+def score_lead(lead: dict, web_intel: dict = None) -> int:
     """
-    Returns (passes: bool, reason: str).
-    For Upwork leads, all hard filter rules apply.
-    For LinkedIn/GMaps, only budget check is skipped (no budget data available).
+    Score a lead 1-10 using the new 4-niche scoring model.
+    web_intel is optional (from website_intelligence.analyze_website).
     """
-    platform = lead.get("platform", "")
+    if web_intel is None:
+        web_intel = {}
 
-    # Upwork-specific hard filters
-    if platform == "upwork":
-        budget = lead.get("budget", 0)
-        if budget > 0 and budget < config.MIN_BUDGET:
-            return False, f"Budget ${budget} below minimum ${config.MIN_BUDGET}"
-
-        proposals = lead.get("proposals", 0)
-        if proposals >= 50:
-            return False, f"Too competitive — {proposals} proposals already"
-
-        posted_at = lead.get("posted_at", "")
-        if not _is_recent(posted_at, max_hours=24.0):
-            return False, "Posted more than 24 hours ago"
-
-    # LinkedIn / Indeed — only block if clearly too many proposals
-    if platform in ("linkedin", "indeed"):
-        proposals = lead.get("proposals", 0)
-        if proposals >= 50:
-            return False, "Too many applicants"
-
-    # Real estate and academic leads always pass hard filters
-    if platform in ("real_estate", "academic"):
-        return True, ""
-
-    return True, ""
-
-
-def _is_recent(posted_at: str, max_hours: float = 2.0) -> bool:
-    if not posted_at:
-        return True
-    try:
-        dt = datetime.strptime(posted_at.strip(), "%a, %d %b %Y %H:%M:%S %z")
-        return (datetime.now(timezone.utc) - dt) <= timedelta(hours=max_hours)
-    except ValueError:
-        return True
-
-
-# ─── Scoring ──────────────────────────────────────────────────────────────────
-
-def score_lead(lead: dict) -> tuple[int, str]:
-    """
-    Score a lead 1–10.
-    Returns (score, niche_detected).
-    """
     score = 0
-    niche = ""
-
-    # Budget score (0–3 pts)
-    budget = lead.get("budget", 0)
-    if budget >= 1000:
-        score += 3
-    elif budget >= 500:
-        score += 2
-    elif budget >= 100:
-        score += 1
-
-    # Niche match (0–2 pts)
     text = f"{lead.get('title', '')} {lead.get('description', '')}".lower()
-    for niche_name, keywords in NICHE_KEYWORDS.items():
-        if any(kw in text for kw in keywords):
-            score += 2
-            niche = niche_name
-            break
+    niche = lead.get("niche", "")
+    email = lead.get("email", "")
+    url = lead.get("url", "")
 
-    # Urgency signals (0–1 pt)
-    if any(kw in text for kw in URGENCY_KEYWORDS):
-        score += 1
-
-    # Competition score (0–2 pts)
-    proposals = lead.get("proposals", 0)
-    if proposals < 5:
+    # Decision maker identified (+2)
+    if any(kw in text for kw in DECISION_MAKER_KWS):
         score += 2
-    elif proposals < 10:
+
+    # Business website accessible (+1)
+    if web_intel.get("accessible") or (url and url.startswith("http")):
         score += 1
 
-    # Real estate + academic leads: base score 6 (no budget/proposals data available)
-    if lead.get("platform") in ("real_estate", "academic"):
-        score = max(score, 6)
-        if lead.get("email"):
-            score = min(10, score + 2)  # bonus for having an email
+    # Email found (+1)
+    if email:
+        score += 1
 
-    # Google Maps leads get a base score of 6 (no proposals/budget data)
-    if lead.get("platform") == "gmaps":
-        score = max(score, 6)
-        rating = lead.get("rating", 0)
-        reviews = lead.get("review_count", 0)
-        if rating >= 4.0 and reviews >= 50:
-            score = min(10, score + 2)
+    # LinkedIn found (+1)
+    if lead.get("linkedin"):
+        score += 1
 
-    # Cap at 10
-    score = min(10, max(1, score))
-    return score, niche
+    # Website automation gap (+2)
+    gap = web_intel.get("automation_gap_score", 0)
+    if gap >= 2:
+        score += 2
+    elif gap >= 1:
+        score += 1
+
+    # Growth signal (+2)
+    if any(kw in text for kw in GROWTH_KWS):
+        score += 2
+
+    # Academic-specific signals
+    if niche == "academic":
+        if any(d in email for d in ACADEMIC_DOMAINS):
+            score += 3
+        if any(kw in text for kw in ACADEMIC_TITLES):
+            score += 3
+        if any(d in url for d in ACADEMIC_DOMAINS):
+            score += 2
+
+    return min(10, max(1, score))
 
 
-# ─── Main Filter Function ──────────────────────────────────────────────────────
-
-def filter_leads(leads: list[dict]) -> list[dict]:
+def filter_leads(leads: list[dict], web_intel_map: dict = None) -> list[dict]:
     """
-    Apply hard filters + scoring to a list of raw leads.
-    Returns only qualified leads (score >= MIN_SCORE) with score/niche attached.
-    If DEBUG_MODE=True, all leads pass through regardless of score.
+    Score and filter leads. Only returns leads with score >= MIN_SCORE.
+    web_intel_map: dict of lead_id -> web_intel (optional)
     """
+    if web_intel_map is None:
+        web_intel_map = {}
+
     if config.DEBUG_MODE:
-        print(f"[Filter] DEBUG MODE — skipping all filters, passing {len(leads)} leads through")
+        print(f"[Filter] DEBUG MODE — passing all {len(leads)} leads")
         for lead in leads:
-            score, niche = score_lead(lead)
-            lead["score"] = score
-            lead["niche"] = niche or lead.get("niche", "")
-            print(f"  -> score={score}/10 | '{lead.get('title', '')[:60]}'")
+            intel = web_intel_map.get(lead["id"], {})
+            lead["score"] = score_lead(lead, intel)
+            print(f"  -> score={lead['score']}/10 niche={lead.get('niche','?')} | '{lead.get('title','')[:55]}'")
         return leads
 
     qualified = []
     dropped = 0
 
     for lead in leads:
-        passes, reason = _passes_hard_filters(lead)
-        if not passes:
-            print(f"[Filter] DROPPED '{lead.get('title', '')[:50]}' — {reason}")
-            dropped += 1
-            continue
-
-        score, niche = score_lead(lead)
+        intel = web_intel_map.get(lead["id"], {})
+        score = score_lead(lead, intel)
         lead["score"] = score
-        lead["niche"] = niche or lead.get("niche", "")
 
         if score < config.MIN_SCORE:
-            print(f"[Filter] LOW SCORE {score}/10 — '{lead.get('title', '')[:50]}'")
             dropped += 1
             continue
 
-        print(f"[Filter] QUALIFIED score={score}/10 niche={lead['niche'] or 'unknown'} — '{lead.get('title', '')[:50]}'")
+        print(f"[Filter] QUALIFIED {score}/10 [{lead.get('niche','?')}] '{lead.get('title','')[:55]}'")
         qualified.append(lead)
 
     print(f"[Filter] {len(qualified)} qualified, {dropped} dropped from {len(leads)} total")

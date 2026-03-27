@@ -16,7 +16,8 @@ from telegram.constants import ParseMode
 import config
 import database as db
 from tgbot.formatter import (
-    format_lead_card, format_run_summary, format_followup_card, format_reply_card
+    format_lead_card, format_run_summary, format_followup_card,
+    format_reply_card, format_opportunity_notification,
 )
 
 logger = logging.getLogger(__name__)
@@ -260,6 +261,22 @@ async def send_run_summary(sources: dict, new_jobs: int, new_leads: int):
         )
     except Exception as e:
         logger.error(f"[Telegram] Failed to send summary: {e}")
+
+
+async def send_telegram_notification(lead: dict, opportunity: dict, outreach: str, email_sent: bool):
+    """Send brief opportunity notification to Telegram (spec: no full proposal in TG)."""
+    if not _app:
+        return
+    text = format_opportunity_notification(lead, opportunity, email_sent)
+    try:
+        await _app.bot.send_message(
+            chat_id=config.TELEGRAM_CHAT_ID,
+            text=text,
+            parse_mode=ParseMode.HTML,
+            disable_web_page_preview=True,
+        )
+    except Exception as e:
+        logger.error(f"[Telegram] Failed to send notification: {e}")
 
 
 async def send_followup_to_telegram(lead: dict, message: str, msg_id: int, day: int):
