@@ -84,6 +84,61 @@ def format_lead_card(lead: dict, message: str, msg_id: int) -> str:
     return "\n".join(l for l in lines if l is not None)
 
 
+def format_researcher_alert(researcher: dict, profile: dict) -> str:
+    """Alert format for a new high-value research lead."""
+    score = researcher.get("score", 0)
+    field = profile.get("matched_field", researcher.get("matched_field", "Research"))
+    keywords = researcher.get("keywords", [])[:4]
+    name = _escape(researcher.get("title", "Unknown")[:80])
+    university = _escape(researcher.get("company", "Unknown"))
+    opp_score = profile.get("field_opportunity_score", 0)
+
+    kw_lines = "\n".join(f"  • {kw.title()}" for kw in keywords) if keywords else "  • N/A"
+
+    return (
+        f"<b>NEW RESEARCH LEAD</b>\n\n"
+        f"<b>Name:</b> {name}\n"
+        f"<b>University:</b> {university}\n"
+        f"<b>Research Field:</b> {_escape(field)}\n\n"
+        f"<b>Lead Score:</b> {score}/10\n"
+        f"<b>Funding Opportunity Score:</b> {opp_score}/10\n\n"
+        f"<b>Research Keywords:</b>\n{kw_lines}\n\n"
+        f"<i>Full researcher intelligence profile attached as PDF.</i>"
+    )
+
+
+def format_grant_alert(grant: dict) -> str:
+    """Alert format for a newly discovered grant opportunity."""
+    focus = "\n".join(f"  • {f}" for f in grant.get("focus", [])[:4])
+    return (
+        f"<b>NEW GRANT OPPORTUNITY</b>\n\n"
+        f"<b>Grant:</b> {_escape(grant.get('name', 'Unknown'))}\n\n"
+        f"<b>Funding:</b> {_escape(grant.get('amount', 'N/A'))}\n"
+        f"<b>Deadline:</b> {_escape(grant.get('deadline', 'See link'))}\n\n"
+        f"<b>Focus Areas:</b>\n{focus}\n\n"
+        f"<b>Eligibility:</b> {_escape(grant.get('eligibility', 'See link')[:120])}"
+    )
+
+
+def format_match_alert(researcher: dict, match: dict) -> str:
+    """Alert format for a researcher–grant match >= 70."""
+    grant = match["grant"]
+    score = match["match_score"]
+    priority = match["priority"]
+    reasons = match.get("reasons", [])[:3]
+    reason_text = "\n".join(f"  • {r}" for r in reasons) if reasons else "  • Strong alignment"
+
+    return (
+        f"<b>RESEARCH MATCH FOUND</b>\n\n"
+        f"<b>Researcher:</b>\n{_escape(researcher.get('title', 'Unknown')[:70])}\n\n"
+        f"<b>Grant:</b>\n{_escape(grant.get('name', 'Unknown')[:70])}\n\n"
+        f"<b>Match Score:</b> {score}%\n"
+        f"<b>Priority:</b> {priority}\n\n"
+        f"<b>Recommendation:</b>\n{reason_text}\n\n"
+        f"<i>Full match report included in researcher PDF.</i>"
+    )
+
+
 def format_opportunity_notification(lead: dict, opportunity: dict, pdf: bool = False) -> str:
     """
     Telegram caption for a lead notification.

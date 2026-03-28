@@ -1,7 +1,13 @@
 """
-main.py — AI LEAD INTELLIGENCE SYSTEM
-Pipeline: Hunt → Balance Niches → Contact Discovery → Website Intel →
-          Score → Opportunity Detect → Email Report → Telegram Notify
+main.py — RESEARCH INTELLIGENCE & GRANT STRATEGY SYSTEM
+Pipeline:
+  1. Research Field Opportunity Engine
+  2. Lead Discovery Engine (researchers)
+  3. Lead Scoring Engine
+  4. Researcher Intelligence Profile Engine
+  5. Grant Intelligence Engine
+  6. Grant Match Engine
+  7. Telegram Intelligence Alerts (PDF + text)
 
 Run: python main.py  |  Stop: Ctrl+C
 """
@@ -11,25 +17,43 @@ import logging
 from datetime import datetime
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
-# Force UTF-8 on Windows
 if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 import config
 import database as db
-from scrapers.executives   import scrape_executives
-from scrapers.lawfirms     import scrape_lawfirms
-from scrapers.real_estate  import scrape_real_estate
-from scrapers.academic     import scrape_academic
-from scrapers.gmaps        import scrape_gmaps
+
+# Scrapers
+from scrapers.academic       import scrape_academic
+from scrapers.google_scholar import scrape_google_scholar
+from scrapers.gmaps          import scrape_gmaps
+from scrapers.executives     import scrape_executives
+from scrapers.lawfirms       import scrape_lawfirms
+from scrapers.real_estate    import scrape_real_estate
+
+# Engines
+from engines.research_fields   import get_field_opportunity
+from engines.grant_discovery   import get_all_grants, search_new_grants
+from engines.grant_matcher     import match_grants
+from engines.researcher_profile import build_researcher_profile
+
+# Core
+from core.researcher_scorer  import score_researcher, classify_researcher
 from core.website_intelligence import analyze_website
 from core.opportunity_detector import detect_opportunity
-from core.email_extractor  import extract_email_from_url
-from filters.lead_filter   import filter_leads
-from ai.lead_writer        import generate_niche_outreach
-from tgbot.bot             import build_app, send_telegram_notification, send_run_summary
-# email_reporter kept as optional fallback only
-from tracking.tracker      import print_stats
+from core.email_extractor    import extract_email_from_url
+from core.pdf_reporter       import generate_researcher_pdf, generate_lead_pdf
+
+# AI
+from ai.lead_writer          import generate_niche_outreach
+
+# Bot
+from tgbot.bot import (
+    build_app, send_run_summary,
+    send_researcher_alert, send_grant_alert, send_match_alert,
+    send_telegram_notification,
+)
+from tracking.tracker import print_stats
 
 logging.basicConfig(
     level=logging.INFO,
@@ -42,174 +66,228 @@ logging.getLogger("telegram").setLevel(logging.WARNING)
 logging.getLogger("apscheduler").setLevel(logging.WARNING)
 
 
-# ─── Niche Balancer ──────────────────────────────────────────────────────────
+# ─── RESEARCH INTELLIGENCE PIPELINE ──────────────────────────────────────────
 
-def _balance_niches(*niche_lists, per_niche: int = 15) -> list[dict]:
-    """
-    Enforce 25% distribution across niches.
-    Takes up to `per_niche` leads from each niche.
-    """
-    balanced = []
-    for lst in niche_lists:
-        balanced.extend(lst[:per_niche])
-    return balanced
-
-
-# ─── Main Intelligence Pipeline ──────────────────────────────────────────────
-
-async def run_intelligence_pipeline():
-    print(f"\n{'='*52}")
-    print(f"  AI LEAD ENGINE RUN -- {datetime.now().strftime('%d %b %Y %H:%M')}")
-    print(f"{'='*52}")
+async def run_research_intelligence():
+    print(f"\n{'='*56}")
+    print(f"  RESEARCH INTELLIGENCE RUN -- {datetime.now().strftime('%d %b %Y %H:%M')}")
+    print(f"{'='*56}")
 
     source_status = {}
 
-    # ── 1. Lead Hunter Engine (scrape all 4 niches) ──
-    exec_leads, law_leads, re_leads, acad_leads = [], [], [], []
+    # ── ENGINE 1: Research Field Opportunity Engine ──────────────────────────
+    print("\n[Engine 1] Loading research field funding data...")
+    # Field data is static + updated per researcher below
+
+    # ── ENGINE 2: Lead Discovery Engine ─────────────────────────────────────
+    print("[Engine 2] Discovering academic researchers...")
+
+    all_researchers = []
 
     try:
-        exec_leads = scrape_executives()
-        source_status["executives"] = True
+        scholar_leads = scrape_google_scholar()
+        all_researchers += scholar_leads
+        source_status["google_scholar"] = True
+        print(f"  Google Scholar: {len(scholar_leads)} found")
     except Exception as e:
-        logger.error(f"Executives scraper failed: {e}")
-        source_status["executives"] = False
+        logger.error(f"Google Scholar scraper failed: {e}")
+        source_status["google_scholar"] = False
 
     try:
-        law_leads = scrape_lawfirms()
-        source_status["law_firms"] = True
-    except Exception as e:
-        logger.error(f"LawFirms scraper failed: {e}")
-        source_status["law_firms"] = False
-
-    try:
-        re_leads = scrape_real_estate()
-        source_status["real_estate"] = True
-    except Exception as e:
-        logger.error(f"RealEstate scraper failed: {e}")
-        source_status["real_estate"] = False
-
-    try:
-        acad_leads = scrape_academic()
-        source_status["academic"] = True
+        academic_leads = scrape_academic()
+        all_researchers += academic_leads
+        source_status["university_dirs"] = True
+        print(f"  University Dirs: {len(academic_leads)} found")
     except Exception as e:
         logger.error(f"Academic scraper failed: {e}")
-        source_status["academic"] = False
+        source_status["university_dirs"] = False
 
-    # GMaps as bonus real estate leads
-    try:
-        gmaps_leads = scrape_gmaps()
-        re_leads += gmaps_leads
-        source_status["gmaps"] = True
-    except Exception as e:
-        logger.error(f"GMaps scraper failed: {e}")
-        source_status["gmaps"] = False
+    db.increment_stat("leads_scraped", len(all_researchers))
+    print(f"\n[Engine 2] Total researchers discovered: {len(all_researchers)}")
 
-    # ── 2. Niche Rotation Engine (25% each) ──
-    all_raw = _balance_niches(exec_leads, law_leads, re_leads, acad_leads, per_niche=15)
-    db.increment_stat("leads_scraped", len(all_raw))
-    print(f"\n[Pipeline] Raw leads: exec={len(exec_leads)} law={len(law_leads)} "
-          f"re={len(re_leads)} acad={len(acad_leads)} | total={len(all_raw)}")
-
-    if not all_raw:
-        print("[Pipeline] No raw leads collected this run.")
-        await send_run_summary(source_status, 0, 0)
-        return
-
-    # ── 3. Contact Discovery Engine ──
-    print(f"[Pipeline] Extracting contact info...")
-    for lead in all_raw:
-        if not lead.get("email") and lead.get("url", "").startswith("http"):
+    # Contact discovery
+    print("[Engine 2] Extracting contact details...")
+    for r in all_researchers:
+        if not r.get("email") and r.get("url", "").startswith("http"):
             try:
-                email = extract_email_from_url(lead["url"])
+                email = extract_email_from_url(r["url"])
                 if email:
-                    lead["email"] = email
+                    r["email"] = email
             except Exception:
                 pass
 
-    # ── 4. Website / Profile Intelligence Engine ──
-    print(f"[Pipeline] Analyzing {len(all_raw)} websites...")
+    # ── ENGINE 5: Grant Intelligence Engine ──────────────────────────────────
+    print("\n[Engine 5] Loading grant database...")
+    grants = get_all_grants()
+    print(f"  {len(grants)} grants in database")
+
+    # ── ENGINE 3: Lead Scoring Engine ────────────────────────────────────────
+    print("\n[Engine 3] Scoring researchers...")
+    qualified = []
+    for r in all_researchers:
+        # Get field opportunity data
+        keywords  = r.get("keywords", [])
+        field_txt = r.get("description", "")
+        field_data = get_field_opportunity(keywords, field_txt)
+        r["matched_field"] = field_data["field"]
+        r["field_data"] = field_data
+
+        score = score_researcher(r, field_data)
+        r["score"] = score
+
+        classification = classify_researcher(score)
+        print(f"  {score}/10 [{classification}] {r.get('title', '')[:55]}")
+
+        if score >= config.MIN_SCORE:
+            qualified.append(r)
+
+    db.increment_stat("leads_qualified", len(qualified))
+    print(f"\n[Engine 3] {len(qualified)} qualified researchers (score >= {config.MIN_SCORE})")
+
+    # Deduplicate
+    new_researchers = [r for r in qualified if db.upsert_lead(r)]
+    print(f"[Engine 3] {len(new_researchers)} new (after dedup)")
+
+    await send_run_summary(source_status, 0, len(new_researchers))
+
+    if not new_researchers:
+        print("[Pipeline] Nothing new this run.")
+    else:
+        # ── ENGINE 4 + 6 + 7: Profile → Match → Alert ───────────────────────
+        print(f"\n[Engine 4] Building researcher profiles + grant matches...")
+
+        for researcher in new_researchers:
+            try:
+                field_data = researcher.get("field_data", {})
+
+                # Engine 4: Build intelligence profile
+                profile = build_researcher_profile(researcher, field_data)
+
+                # Engine 6: Match grants
+                matches = match_grants(researcher, grants)
+                strong_matches = [m for m in matches if m["match_score"] >= 70]
+                all_matches    = [m for m in matches if m["match_score"] >= 50]
+
+                # Generate outreach
+                outreach = generate_niche_outreach(researcher, {})
+
+                # Save to DB
+                db.save_message(researcher["id"], "outreach", outreach)
+
+                # Engine 7: Generate PDF + send researcher alert
+                pdf_bytes = generate_researcher_pdf(
+                    researcher, profile, grants, all_matches, outreach
+                )
+                await send_researcher_alert(researcher, profile, pdf_bytes)
+
+                # Send match alerts for strong matches
+                for match in strong_matches[:3]:
+                    await send_match_alert(researcher, match)
+                    await asyncio.sleep(0.8)
+
+                await asyncio.sleep(2)
+
+            except Exception as e:
+                logger.error(f"Failed to process researcher '{researcher.get('title', '')}': {e}")
+                continue
+
+    # ── GRANT ALERTS: Send top grants each run ────────────────────────────────
+    print(f"\n[Engine 5] Sending top grant opportunities...")
+    top_grants = sorted(grants, key=lambda g: len(g.get("focus", [])), reverse=True)[:3]
+    for grant in top_grants:
+        try:
+            await send_grant_alert(grant)
+            await asyncio.sleep(1)
+        except Exception as e:
+            logger.error(f"Failed to send grant alert: {e}")
+
+    print(f"\n[Pipeline] Research intelligence run complete.")
+    print_stats()
+
+
+# ─── BUSINESS LEADS PIPELINE (parallel) ──────────────────────────────────────
+
+async def run_business_leads():
+    """Secondary pipeline for non-academic business leads (exec, law, real estate)."""
+    print(f"\n[BizPipeline] Scanning business leads...")
+
+    raw = []
+    for fn, name in [
+        (scrape_executives,  "Executives"),
+        (scrape_lawfirms,    "LawFirms"),
+        (scrape_real_estate, "RealEstate"),
+    ]:
+        try:
+            leads = fn()
+            raw += leads
+            print(f"  {name}: {len(leads)}")
+        except Exception as e:
+            logger.error(f"{name} failed: {e}")
+
+    gmaps = []
+    try:
+        gmaps = scrape_gmaps()
+        raw += gmaps
+        print(f"  GMaps: {len(gmaps)}")
+    except Exception as e:
+        logger.error(f"GMaps failed: {e}")
+
+    if not raw:
+        print("[BizPipeline] No business leads collected.")
+        return
+
+    # Website intel + score
+    from filters.lead_filter import filter_leads
     web_intel_map = {}
-    for lead in all_raw:
+    for lead in raw:
         url = lead.get("url", "")
         if url and url.startswith("http"):
             web_intel_map[lead["id"]] = analyze_website(url)
-        else:
-            web_intel_map[lead["id"]] = {}
 
-    # ── 5. Lead Scoring Engine ──
-    qualified = filter_leads(all_raw, web_intel_map)
-    db.increment_stat("leads_qualified", len(qualified))
+    qualified = filter_leads(raw, web_intel_map)
+    new_leads  = [l for l in qualified if db.upsert_lead(l)]
 
-    # ── Deduplication ──
-    new_leads = []
-    for lead in qualified:
-        if db.upsert_lead(lead):
-            new_leads.append(lead)
-
-    print(f"[Pipeline] {len(new_leads)} new qualified leads after dedup")
-
-    # ── Send run summary ──
-    await send_run_summary(source_status, 0, len(new_leads))
-
-    if not new_leads:
-        print("[Pipeline] Nothing new this run.")
-        return
-
-    # ── 6. Opportunity Detector + 7. Email Report + 8. Telegram Notify ──
-    high = medium = low = 0
     for lead in new_leads:
         try:
             intel = web_intel_map.get(lead["id"], {})
-
-            # Detect opportunity
             opportunity = detect_opportunity(lead, intel)
-            priority = opportunity["priority"]
-            if priority == "HIGH":
-                high += 1
-            elif priority == "MEDIUM":
-                medium += 1
-            else:
-                low += 1
-
-            # Generate outreach
             outreach = generate_niche_outreach(lead, intel)
-
-            # Save to DB
-            msg_id = db.save_message(lead["id"], "outreach", outreach)
-
-            # Send PDF report to Telegram
+            db.save_message(lead["id"], "outreach", outreach)
             await send_telegram_notification(lead, opportunity, outreach, intel)
-
             await asyncio.sleep(1.5)
-
         except Exception as e:
-            logger.error(f"Failed to process lead '{lead.get('title', '')}': {e}")
-            continue
+            logger.error(f"Biz lead failed: {e}")
 
-    print(f"\n[Pipeline] Done — HIGH:{high} MEDIUM:{medium} LOW:{low}")
-    print_stats()
+    print(f"[BizPipeline] {len(new_leads)} new business leads sent.")
 
 
-# ─── Entry Point ─────────────────────────────────────────────────────────────
+# ─── COMBINED SCHEDULER JOB ──────────────────────────────────────────────────
+
+async def run_all():
+    await run_research_intelligence()
+    await run_business_leads()
+
+
+# ─── ENTRY POINT ─────────────────────────────────────────────────────────────
 
 async def run():
     db.init_db()
-    print(f"\n[OK] Database initialized")
+    print("\n[OK] Database initialized")
     print_stats()
 
     app = build_app()
-    print(f"[OK] Telegram bot connected")
-    print(f"[OK] Schedule: every {config.SCHEDULE_HOURS}h | Min score: {config.MIN_SCORE}/10")
-    print(f"\n{'='*52}")
-    print(f"  AI LEAD INTELLIGENCE SYSTEM -- RUNNING")
-    print(f"{'='*52}\n")
+    print("[OK] Telegram bot connected")
+    print(f"[OK] Schedule: every {config.SCHEDULE_HOURS}h")
+    print(f"\n{'='*56}")
+    print(f"  RESEARCH INTELLIGENCE SYSTEM -- RUNNING")
+    print(f"{'='*56}\n")
 
     scheduler = AsyncIOScheduler()
     scheduler.add_job(
-        run_intelligence_pipeline,
+        run_all,
         "interval",
         hours=config.SCHEDULE_HOURS,
-        id="lead_engine",
+        id="research_engine",
         next_run_time=datetime.now(),
     )
     scheduler.start()

@@ -18,6 +18,7 @@ import database as db
 from tgbot.formatter import (
     format_lead_card, format_run_summary, format_followup_card,
     format_reply_card, format_opportunity_notification,
+    format_researcher_alert, format_grant_alert, format_match_alert,
 )
 
 logger = logging.getLogger(__name__)
@@ -300,6 +301,67 @@ async def send_telegram_notification(lead: dict, opportunity: dict, outreach: st
             )
         except Exception as e2:
             logger.error(f"[Telegram] Fallback text also failed: {e2}")
+
+
+async def send_researcher_alert(researcher: dict, profile: dict, pdf_bytes: bytes):
+    """Send NEW RESEARCH LEAD alert with PDF profile attached."""
+    if not _app:
+        return
+    caption = format_researcher_alert(researcher, profile)
+    title_slug = researcher.get("title", "researcher")[:40].replace(" ", "_")
+    filename = f"researcher_{title_slug}.pdf"
+    try:
+        import io
+        await _app.bot.send_document(
+            chat_id=config.TELEGRAM_CHAT_ID,
+            document=io.BytesIO(pdf_bytes),
+            filename=filename,
+            caption=caption,
+            parse_mode=ParseMode.HTML,
+        )
+    except Exception as e:
+        logger.error(f"[Telegram] Researcher alert failed: {e}")
+        try:
+            await _app.bot.send_message(
+                chat_id=config.TELEGRAM_CHAT_ID,
+                text=caption,
+                parse_mode=ParseMode.HTML,
+                disable_web_page_preview=True,
+            )
+        except Exception as e2:
+            logger.error(f"[Telegram] Fallback failed: {e2}")
+
+
+async def send_grant_alert(grant: dict):
+    """Send NEW GRANT OPPORTUNITY alert."""
+    if not _app:
+        return
+    text = format_grant_alert(grant)
+    try:
+        await _app.bot.send_message(
+            chat_id=config.TELEGRAM_CHAT_ID,
+            text=text,
+            parse_mode=ParseMode.HTML,
+            disable_web_page_preview=True,
+        )
+    except Exception as e:
+        logger.error(f"[Telegram] Grant alert failed: {e}")
+
+
+async def send_match_alert(researcher: dict, match: dict):
+    """Send RESEARCH MATCH FOUND alert (score >= 70)."""
+    if not _app:
+        return
+    text = format_match_alert(researcher, match)
+    try:
+        await _app.bot.send_message(
+            chat_id=config.TELEGRAM_CHAT_ID,
+            text=text,
+            parse_mode=ParseMode.HTML,
+            disable_web_page_preview=True,
+        )
+    except Exception as e:
+        logger.error(f"[Telegram] Match alert failed: {e}")
 
 
 async def send_followup_to_telegram(lead: dict, message: str, msg_id: int, day: int):
